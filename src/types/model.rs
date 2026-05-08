@@ -177,6 +177,9 @@ pub enum Provider {
     /// DeepSeek.
     #[serde(rename = "deepseek")]
     DeepSeek,
+    /// Xiaomi MiMo.
+    #[serde(rename = "xiaomi-mimo")]
+    XiaomiMIMO,
     /// Zenmux.
     #[serde(rename = "zenmux")]
     Zenmux,
@@ -217,6 +220,7 @@ impl Provider {
             Provider::OpenCodeGo => "opencode-go",
             Provider::KimiCoding => "kimi-coding",
             Provider::DeepSeek => "deepseek",
+            Provider::XiaomiMIMO => "xiaomi-mimo",
             Provider::Zenmux => "zenmux",
             Provider::Ollama => "ollama",
             Provider::Custom(s) => s.as_str(),
@@ -259,6 +263,7 @@ impl From<String> for Provider {
             "opencode-go" => Provider::OpenCodeGo,
             "kimi-coding" => Provider::KimiCoding,
             "deepseek" => Provider::DeepSeek,
+            "xiaomi-mimo" => Provider::XiaomiMIMO,
             "zenmux" => Provider::Zenmux,
             "ollama" => Provider::Ollama,
             _ => Provider::Custom(s),
