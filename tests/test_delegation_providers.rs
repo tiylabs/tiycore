@@ -284,17 +284,20 @@ fn test_xai_api_type() {
 #[test]
 fn test_xai_default_compat() {
     let compat = XAIProvider::default_compat();
-    assert!(!compat.supports_store, "xAI should not support store");
     assert!(
-        !compat.supports_developer_role,
+        !compat.capabilities.supports_store,
+        "xAI should not support store"
+    );
+    assert!(
+        !compat.capabilities.supports_developer_role,
         "xAI should not support developer role"
     );
     assert!(
-        !compat.supports_reasoning_effort,
+        !compat.capabilities.supports_reasoning_effort,
         "xAI should not support reasoning_effort"
     );
-    assert_eq!(compat.thinking_format, "openai");
-    assert!(compat.supports_strict_mode);
+    assert_eq!(compat.thinking.format, "openai");
+    assert!(compat.capabilities.supports_strict_mode);
 }
 
 #[tokio::test]
@@ -356,17 +359,17 @@ fn test_groq_api_type() {
 #[test]
 fn test_groq_default_compat_standard() {
     let compat = GroqProvider::default_compat("llama-3.3-70b-versatile");
-    assert!(compat.supports_store);
-    assert!(compat.supports_reasoning_effort);
-    assert!(compat.reasoning_effort_map.is_empty());
+    assert!(compat.capabilities.supports_store);
+    assert!(compat.capabilities.supports_reasoning_effort);
+    assert!(compat.thinking.effort_map.is_empty());
 }
 
 #[test]
 fn test_groq_default_compat_qwen3() {
     let compat = GroqProvider::default_compat("qwen/qwen3-32b");
-    assert_eq!(compat.reasoning_effort_map.len(), 5);
+    assert_eq!(compat.thinking.effort_map.len(), 5);
     for level in &["minimal", "low", "medium", "high", "xhigh"] {
-        assert_eq!(compat.reasoning_effort_map.get(*level).unwrap(), "default");
+        assert_eq!(compat.thinking.effort_map.get(*level).unwrap(), "default");
     }
 }
 
@@ -441,10 +444,10 @@ fn test_zai_api_type() {
 #[test]
 fn test_zai_default_compat() {
     let compat = ZAIProvider::default_compat();
-    assert!(!compat.supports_store);
-    assert!(!compat.supports_developer_role);
-    assert!(!compat.supports_reasoning_effort);
-    assert_eq!(compat.thinking_format, "zai");
+    assert!(!compat.capabilities.supports_store);
+    assert!(!compat.capabilities.supports_developer_role);
+    assert!(!compat.capabilities.supports_reasoning_effort);
+    assert_eq!(compat.thinking.format, "zai");
 }
 
 #[tokio::test]
@@ -481,17 +484,20 @@ fn test_deepseek_api_type() {
 #[test]
 fn test_deepseek_default_compat() {
     let compat = DeepSeekProvider::default_compat();
-    assert!(!compat.supports_store, "DeepSeek should not support store");
     assert!(
-        !compat.supports_developer_role,
+        !compat.capabilities.supports_store,
+        "DeepSeek should not support store"
+    );
+    assert!(
+        !compat.capabilities.supports_developer_role,
         "DeepSeek should not support developer role"
     );
     assert!(
-        compat.supports_reasoning_effort,
+        compat.capabilities.supports_reasoning_effort,
         "DeepSeek should support reasoning_effort"
     );
-    assert_eq!(compat.thinking_format, "openai");
-    assert!(compat.supports_strict_mode);
+    assert_eq!(compat.thinking.format, "openai");
+    assert!(compat.capabilities.supports_strict_mode);
 }
 
 #[tokio::test]
@@ -544,8 +550,11 @@ async fn test_deepseek_preserves_explicit_compat() {
     let server = mock_openai_server("ok").await;
     let mut model = make_model(Api::OpenAICompletions, Provider::DeepSeek, &server.uri());
     model.compat = Some(OpenAICompletionsCompat {
-        supports_store: true,
-        supports_developer_role: true,
+        capabilities: CompatCapabilities {
+            supports_store: true,
+            supports_developer_role: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
     let context = Context::with_system_prompt("test");
@@ -999,8 +1008,11 @@ async fn test_xai_preserves_explicit_compat() {
     let server = mock_openai_server("ok").await;
     let mut model = make_model(Api::OpenAICompletions, Provider::XAI, &server.uri());
     model.compat = Some(OpenAICompletionsCompat {
-        supports_store: true,
-        supports_developer_role: true,
+        capabilities: CompatCapabilities {
+            supports_store: true,
+            supports_developer_role: true,
+            ..Default::default()
+        },
         ..Default::default()
     });
     let context = Context::with_system_prompt("test");

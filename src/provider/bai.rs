@@ -262,10 +262,7 @@ mod tests {
             bai_detect_route("gemini-2.5-pro"),
             BaiProtocolRoute::OpenAICompatible
         );
-        assert_eq!(
-            bai_detect_route(""),
-            BaiProtocolRoute::OpenAICompatible
-        );
+        assert_eq!(bai_detect_route(""), BaiProtocolRoute::OpenAICompatible);
     }
 
     #[test]

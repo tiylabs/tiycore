@@ -1498,7 +1498,10 @@ async fn test_stream_with_developer_role_compat() {
         .max_tokens(16384)
         .reasoning(true)
         .compat(OpenAICompletionsCompat {
-            supports_developer_role: true,
+            capabilities: CompatCapabilities {
+                supports_developer_role: true,
+                ..Default::default()
+            },
             ..Default::default()
         })
         .build()

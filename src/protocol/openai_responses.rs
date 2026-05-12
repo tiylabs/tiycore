@@ -1179,7 +1179,9 @@ async fn run_stream(
                         let delta = val.get("delta").and_then(|d| d.as_str()).unwrap_or("");
 
                         // Auto-register if output_item.added was never received for this index
-                        if let std::collections::hash_map::Entry::Vacant(e) = item_content_map.entry(output_index) {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            item_content_map.entry(output_index)
+                        {
                             let call_id = val
                                 .get("call_id")
                                 .or_else(|| val.get("item_id"))
@@ -1252,7 +1254,9 @@ async fn run_stream(
                             .and_then(|args| args.as_str())
                             .unwrap_or("");
 
-                        if let std::collections::hash_map::Entry::Vacant(e) = item_content_map.entry(output_index) {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            item_content_map.entry(output_index)
+                        {
                             let call_id = val
                                 .get("call_id")
                                 .and_then(|c| c.as_str())
@@ -1327,7 +1331,9 @@ async fn run_stream(
                         let delta = val.get("delta").and_then(|d| d.as_str()).unwrap_or("");
 
                         // Auto-register if output_item.added was never received for this index
-                        if let std::collections::hash_map::Entry::Vacant(e) = item_content_map.entry(output_index) {
+                        if let std::collections::hash_map::Entry::Vacant(e) =
+                            item_content_map.entry(output_index)
+                        {
                             let content_idx = output.content.len();
                             output
                                 .content

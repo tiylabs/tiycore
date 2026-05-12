@@ -294,15 +294,15 @@ fn test_model_serde_roundtrip() {
 #[test]
 fn test_openai_completions_compat_default() {
     let compat = OpenAICompletionsCompat::default();
-    assert!(compat.supports_store);
-    assert!(!compat.supports_developer_role);
-    assert!(compat.supports_reasoning_effort);
-    assert!(compat.supports_usage_in_streaming);
-    assert!(compat.supports_strict_mode);
-    assert!(!compat.requires_tool_result_name);
-    assert!(!compat.requires_assistant_after_tool_result);
-    assert!(!compat.requires_thinking_as_text);
-    assert_eq!(compat.thinking_format, "openai");
+    assert!(compat.capabilities.supports_store);
+    assert!(!compat.capabilities.supports_developer_role);
+    assert!(compat.capabilities.supports_reasoning_effort);
+    assert!(compat.capabilities.supports_usage_in_streaming);
+    assert!(compat.capabilities.supports_strict_mode);
+    assert!(!compat.message_format.requires_tool_result_name);
+    assert!(!compat.message_format.requires_assistant_after_tool_result);
+    assert!(!compat.thinking.as_text);
+    assert_eq!(compat.thinking.format, "openai");
 }
 
 // ============================================================================
@@ -1322,8 +1322,11 @@ fn test_model_builder_with_headers() {
 #[test]
 fn test_model_builder_with_compat() {
     let compat = OpenAICompletionsCompat {
-        supports_store: false,
-        supports_developer_role: true,
+        capabilities: CompatCapabilities {
+            supports_store: false,
+            supports_developer_role: true,
+            ..Default::default()
+        },
         ..Default::default()
     };
 
@@ -1337,7 +1340,7 @@ fn test_model_builder_with_compat() {
         .build()
         .unwrap();
 
-    assert_eq!(model.compat.unwrap().supports_store, false);
+    assert_eq!(model.compat.unwrap().capabilities.supports_store, false);
 }
 
 // ============================================================================

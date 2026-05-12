@@ -20,10 +20,16 @@ define_openai_delegation_provider! {
     provider_type: Provider::XAI,
     env_var: "XAI_API_KEY",
     default_compat: || OpenAICompletionsCompat {
-        supports_store: false,
-        supports_developer_role: false,
-        supports_reasoning_effort: false,
-        thinking_format: "openai".to_string(),
+        capabilities: CompatCapabilities {
+            supports_store: false,
+            supports_developer_role: false,
+            supports_reasoning_effort: false,
+            ..Default::default()
+        },
+        thinking: CompatThinking {
+            format: "openai".to_string(),
+            ..Default::default()
+        },
         ..Default::default()
     },
 }

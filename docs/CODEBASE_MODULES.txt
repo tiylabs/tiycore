@@ -1,0 +1,205 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                   TIYCORE MODULE RELATIONSHIP DIAGRAM                          ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                             LIBRARY INTERFACE                                  │
+│                            (src/lib.rs - 82 lines)                             │
+│                                                                                │
+│  Publicly exports:                                                             │
+│  • types::* (Context, Message, ContentBlock, Tool, etc.)                      │
+│  • agent::{Agent, AgentStateSnapshot}                                         │
+│  • catalog::* (model catalog functions)                                       │
+│  • stream::EventStream                                                        │
+│  • provider::* (facades + registry)                                           │
+│  • protocol::* (LLMProtocol trait)                                            │
+└────────────────────────────────────────────────────────────────────────────────┘
+                              ↓         ↓         ↓
+                              │         │         │
+          ╔════════════════════╩═════════╩═════════╩═════════════════════╗
+          │                                                              │
+          ▼                                                              ▼
+┌──────────────────────────────────┐                    ┌──────────────────────────┐
+│   TYPES MODULE (Core Types)      │                    │   AGENT MODULE           │
+│  src/types/ (7 files, 1,800 LOC) │                    │ src/agent/ (4 files)    │
+│                                  │                    │                          │
+│ ┌──────────────────────────────┐ │                    │ ┌──────────────────────┐ │
+│ │ context.rs (403 lines)       │ │                    │ │ agent.rs (~2000 LOC) │ │
+│ ├──────────────────────────────┤ │                    │ ├──────────────────────┤ │
+│ │ • Context                    │ │                    │ │ • Agent              │ │
+│ │   ├─ system_prompt           │ │                    │ │ • AgentLoop          │ │
+│ │   ├─ messages: Vec<Message>  │ │                    │ │ • AgentError         │ │
+│ │   └─ tools: Vec<Tool>        │ │                    │ │ • SubscriberId       │ │
+│ │                              │ │                    │ │                      │ │
+│ │ • Tool                       │ │                    │ │ Functions:           │ │
+│ │   ├─ name, description       │ │                    │ │ • agent_loop()       │ │
+│ │   └─ parameters (JSON Schema)│ │                    │ │ • run_agent_loop()   │ │
+│ │                              │ │                    │ └──────────────────────┘ │
+│ │ • StreamOptions              │ │                    │                          │
+│ │   ├─ temperature, max_tokens │ │                    │ ┌──────────────────────┐ │
+│ │   ├─ api_key, base_url       │ │                    │ │ state.rs             │ │
+│ │   ├─ headers, session_id     │ │                    │ ├──────────────────────┤ │
+│ │   ├─ cache_retention         │ │                    │ │ • AgentState         │ │
+│ │   ├─ security, transport     │ │                    │ │ • StateSnapshot      │ │
+│ │   ├─ tool_choice, metadata   │ │                    │ └──────────────────────┘ │
+│ │   └─ on_payload (hook)       │ │                    │                          │
+│ │                              │ │                    │ ┌──────────────────────┐ │
+│ │ • SimpleStreamOptions        │ │                    │ │ types.rs             │ │
+│ │   └─ extends StreamOptions   │ │                    │ └──────────────────────┘ │
+│ │     with reasoning/thinking  │ │                    │                          │
+│ └──────────────────────────────┘ │                    └──────────────────────────┘
+│                                  │                                │
+│ ┌──────────────────────────────┐ │                                │
+│ │ message.rs (400 lines)       │ │                                │
+│ ├──────────────────────────────┤ │                    ┌───────────┴──────────┐
+│ │ • Role (User, Assistant,     │ │                    │                      │
+│ │   ToolResult)                │ │                    ▼                      ▼
+│ │ • StopReason (Stop, Length,  │ │          ┌──────────────────┐  ┌──────────────────┐
+│ │   ToolUse, Error, Aborted)   │ │          │ PROTOCOL MODULE  │  │ PROVIDER MODULE  │
+│ │ • UserMessage                │ │          │ src/protocol/    │  │ src/provider/    │
+│ │ • AssistantMessage           │ │          │ (7 files)        │  │ (18 files)       │
+│ │ • ToolResultMessage          │ │          │                  │  │                  │
+│ │ • Message (enum)             │ │          │ ┌────────────┐   │  │ ┌────────────┐   │
+│ │                              │ │          │ │traits.rs   │   │  │ │registry.rs │   │
+│ │                              │ │          │ ├────────────┤   │  │ ├────────────┤   │
+│ │                              │ │          │ │LLMProtocol │   │  │ │ProtocolReg│   │
+│ │                              │ │          │ │trait       │   │  │ │get_provider│   │
+│ │                              │ │          │ │BoxedProto  │   │  │ │register_pro│   │
+│ │                              │ │          │ │ArcProtocol │   │  │ └────────────┘   │
+│ │                              │ │          │ └────────────┘   │  │                  │
+│ │                              │ │          │                  │  │ ┌────────────┐   │
+│ │ ContentBlock (enum):         │ │          │ ┌────────────┐   │  │ │openai.rs   │   │
+│ │ • Text(TextContent)          │ │          │ │openai_comp │   │  │ ├────────────┤   │
+│ │ • Thinking(ThinkingContent)  │ │          │ │_pletions.rs    │  │ │OpenAIProv  │   │
+│ │ • ToolCall(ToolCall)         │ │          │ └────────────┘   │  │ │delegates to    │
+│ │ • Image(ImageContent)        │ │          │                  │  │ │openai_compl    │
+│ │                              │ │          │ ┌────────────┐   │  │ └────────────┘   │
+│ │ UserContent (enum):          │ │          │ │openai_resp │   │  │                  │
+│ │ • Text(String)               │ │          │ │_onses.rs   │   │  │ ┌────────────┐   │
+│ │ • Blocks(Vec<ContentBlock>)  │ │          │ └────────────┘   │  │ │anthropic.rs│   │
+│ │                              │ │          │                  │  │ ├────────────┤   │
+│ └──────────────────────────────┘ │          │ ┌────────────┐   │  │ │Anthropic   │   │
+│                                  │          │ │anthropic. │   │  │ │Prov        │   │
+│ ┌──────────────────────────────┐ │          │ │rs         │   │  │ └────────────┘   │
+│ │ content.rs (235 lines)       │ │          │ └────────────┘   │  │                  │
+│ ├──────────────────────────────┤ │          │                  │  │ ┌────────────┐   │
+│ │ • TextContent                │ │          │ ┌────────────┐   │  │ │google.rs   │   │
+│ │ • ThinkingContent            │ │          │ │google.rs   │   │  │ ├────────────┤   │
+│ │ • ImageContent               │ │          │ └────────────┘   │  │ │GoogleProv  │   │
+│ │ • ToolCall                   │ │          │                  │  │ └────────────┘   │
+│ │ • ContentBlock (enum)        │ │          │ ┌────────────┐   │  │                  │
+│ │ • UserContent (enum)         │ │          │ │common.rs   │   │  │ ┌────────────┐   │
+│ │                              │ │          │ └────────────┘   │  │ │ollama.rs   │   │
+│ └──────────────────────────────┘ │          └──────────────────┘  │ ├────────────┤   │
+│                                  │                                │ │OllamaProvider  │
+│ ┌──────────────────────────────┐ │                                │ └────────────┘   │
+│ │ model.rs (macro-generated     │ │                                │ + 13 more        │
+│ │ Provider/Api enums +         │ │                                │   specialized    │
+│ │ OpenAICompletionsCompat),    │ │                                │   providers      │
+│ │ usage.rs, events.rs,         │ │                                │                  │
+│ │ limits.rs (~600 LOC)         │ │
+└──────────────────────────────────┘                                └──────────────────┘
+          │                                                                  │
+          └──────────────────────────────┬───────────────────────────────────┘
+                                         │
+                                         ▼
+                        ┌─────────────────────────────────┐
+                        │   STREAM MODULE                 │
+                        │   src/stream/ (3 files, ~500)   │
+                        │                                 │
+                        │ ┌─────────────────────────────┐ │
+                        │ │ event_stream.rs             │ │
+                        │ ├─────────────────────────────┤ │
+                        │ │ EventStream<T>              │ │
+                        │ │ • Notify-based async result │ │
+                        │ │ • futures::Stream impl      │ │
+                        │ └─────────────────────────────┘ │
+                        │                                 │
+                        │ ┌─────────────────────────────┐ │
+                        │ │ json_parser.rs              │ │
+                        │ ├─────────────────────────────┤ │
+                        │ │ Incremental JSON parsing    │ │
+                        │ │ for streaming responses     │ │
+                        │ └─────────────────────────────┘ │
+                        └─────────────────────────────────┘
+                                         │
+                                         ▼
+                        ┌─────────────────────────────────┐
+                        │   TRANSFORM MODULE              │
+                        │   src/transform/ (3 files)      │
+                        │                                 │
+                        │ ┌─────────────────────────────┐ │
+                        │ │ messages.rs                 │ │
+                        │ │ → Convert between formats   │ │
+                        │ └─────────────────────────────┘ │
+                        │                                 │
+                        │ ┌─────────────────────────────┐ │
+                        │ │ tool_calls.rs               │ │
+                        │ │ → Parse & extract tool args │ │
+                        │ └─────────────────────────────┘ │
+                        └─────────────────────────────────┘
+                                         │
+                ┌────────────────────────┼────────────────────────┐
+                │                        │                        │
+                ▼                        ▼                        ▼
+    ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐
+    │ CATALOG MODULE       │  │ THINKING MODULE      │  │ VALIDATION MODULE    │
+    │ src/catalog/         │  │ src/thinking/        │  │ src/validation/      │
+    │ (~1,000 LOC)         │  │ (~300 LOC)           │  │ (~200 LOC)           │
+    │                      │  │                      │  │                      │
+    │ • CatalogSnapshot    │  │ • ThinkingLevel      │  │ • JSON Schema        │
+    │ • list_models()      │  │ • ThinkingDisplay    │  │   validation         │
+    │ • build_snapshot()   │  │ • Config             │  │ • Tool parameter     │
+    │ • refresh_snapshot() │  │   for extended       │  │   verification       │
+    │ • apply_patches()    │  │   thinking           │  │                      │
+    │ • CatalogMetadataS.  │  │                      │  │                      │
+    │                      │  │                      │  │                      │
+    └──────────────────────┘  └──────────────────────┘  └──────────────────────┘
+                │                                              │
+                └──────────────────┬───────────────────────────┘
+                                   │
+                                   ▼
+                        ┌──────────────────────┐
+                        │ MODELS MODULE        │
+                        │ src/models/          │
+                        │ (~500 LOC)           │
+                        │                      │
+                        │ • predefined.rs      │
+                        │   Pre-configured     │
+                        │   model definitions  │
+                        │                      │
+                        └──────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+
+DEPENDENCY ARROWS (reading left to right):
+→ Types are foundational (used by all modules)
+→ Agent uses Types + Protocol/Provider system
+→ Protocol & Provider implement wire format translation
+→ Stream, Transform handle data flow between layers
+→ Catalog, Thinking, Validation provide support services
+
+════════════════════════════════════════════════════════════════════════════════
+
+KEY PATTERNS:
+
+1. PROTOCOL-PROVIDER SEPARATION
+   protocol/ defines wire formats (openai_completions, anthropic, google)
+   provider/ wraps them in convenient facades + manages registry
+
+2. TYPE-DRIVEN DESIGN
+   types/ provides core data model that everything else uses
+   Strong type system prevents many bugs at compile time
+
+3. STREAMING-FIRST ARCHITECTURE
+   stream/ handles async event-based responses
+   Supports both SSE and WebSocket transports
+
+4. TRANSFORMATION PIPELINE
+   Stream Data → JSON Parser → Transform → Unified Types
+
+5. EXTENSIBILITY
+   Add new providers by implementing LLMProtocol trait
+   Auto-registration via registry system
+
+════════════════════════════════════════════════════════════════════════════════

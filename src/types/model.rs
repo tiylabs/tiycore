@@ -3,65 +3,88 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Known API types.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Api {
-    /// OpenAI Chat Completions API.
-    #[serde(rename = "openai-completions")]
-    OpenAICompletions,
-    /// Mistral Conversations API.
-    #[serde(rename = "mistral-conversations")]
-    MistralConversations,
-    /// OpenAI Responses API (new).
-    #[serde(rename = "openai-responses")]
-    OpenAIResponses,
-    /// Azure OpenAI Responses API.
-    #[serde(rename = "azure-openai-responses")]
-    AzureOpenAIResponses,
-    /// OpenAI Codex Responses API.
-    #[serde(rename = "openai-codex-responses")]
-    OpenAICodexResponses,
-    /// Anthropic Messages API.
-    #[serde(rename = "anthropic-messages")]
-    AnthropicMessages,
-    /// AWS Bedrock Converse Stream API.
-    #[serde(rename = "bedrock-converse-stream")]
-    BedrockConverseStream,
-    /// Google Generative AI API.
-    #[serde(rename = "google-generative-ai")]
-    GoogleGenerativeAi,
-    /// Google Gemini CLI API.
-    #[serde(rename = "google-gemini-cli")]
-    GoogleGeminiCli,
-    /// Google Vertex AI API.
-    #[serde(rename = "google-vertex")]
-    GoogleVertex,
-    /// Ollama API (OpenAI compatible).
-    #[serde(rename = "ollama")]
-    Ollama,
-    /// Custom API type.
-    Custom(String),
+/// Macro to define a string-backed enum with `Custom(String)` catch-all.
+///
+/// Generates:
+/// - The enum with `#[serde(rename = "...")]` on each variant
+/// - `as_str() -> &str`
+/// - `Display` (delegates to `as_str()`)
+/// - `From<String>` (reverse mapping, unknown strings become `Custom(String)`)
+macro_rules! define_string_enum {
+    (
+        $(#[$meta:meta])*
+        pub enum $name:ident {
+            $( $(#[$variant_meta:meta])* $variant:ident => $str:literal, )*
+        }
+    ) => {
+        $(#[$meta])*
+        pub enum $name {
+            $(
+                $(#[$variant_meta])*
+                #[serde(rename = $str)]
+                $variant,
+            )*
+            /// Custom variant.
+            Custom(String),
+        }
+
+        impl $name {
+            /// Get the string representation.
+            pub fn as_str(&self) -> &str {
+                match self {
+                    $( $name::$variant => $str, )*
+                    $name::Custom(s) => s.as_str(),
+                }
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.as_str())
+            }
+        }
+
+        impl From<String> for $name {
+            fn from(s: String) -> Self {
+                match s.as_str() {
+                    $( $str => $name::$variant, )*
+                    _ => $name::Custom(s),
+                }
+            }
+        }
+    }
+}
+
+define_string_enum! {
+    /// Known API types.
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub enum Api {
+        /// OpenAI Chat Completions API.
+        OpenAICompletions => "openai-completions",
+        /// Mistral Conversations API.
+        MistralConversations => "mistral-conversations",
+        /// OpenAI Responses API (new).
+        OpenAIResponses => "openai-responses",
+        /// Azure OpenAI Responses API.
+        AzureOpenAIResponses => "azure-openai-responses",
+        /// OpenAI Codex Responses API.
+        OpenAICodexResponses => "openai-codex-responses",
+        /// Anthropic Messages API.
+        AnthropicMessages => "anthropic-messages",
+        /// AWS Bedrock Converse Stream API.
+        BedrockConverseStream => "bedrock-converse-stream",
+        /// Google Generative AI API.
+        GoogleGenerativeAi => "google-generative-ai",
+        /// Google Gemini CLI API.
+        GoogleGeminiCli => "google-gemini-cli",
+        /// Google Vertex AI API.
+        GoogleVertex => "google-vertex",
+        /// Ollama API (OpenAI compatible).
+        Ollama => "ollama",
+    }
 }
 
 impl Api {
-    /// Get the string representation of this API type.
-    pub fn as_str(&self) -> &str {
-        match self {
-            Api::OpenAICompletions => "openai-completions",
-            Api::MistralConversations => "mistral-conversations",
-            Api::OpenAIResponses => "openai-responses",
-            Api::AzureOpenAIResponses => "azure-openai-responses",
-            Api::OpenAICodexResponses => "openai-codex-responses",
-            Api::AnthropicMessages => "anthropic-messages",
-            Api::BedrockConverseStream => "bedrock-converse-stream",
-            Api::GoogleGenerativeAi => "google-generative-ai",
-            Api::GoogleGeminiCli => "google-gemini-cli",
-            Api::GoogleVertex => "google-vertex",
-            Api::Ollama => "ollama",
-            Api::Custom(s) => s.as_str(),
-        }
-    }
-
     /// Check if this is an OpenAI-compatible API.
     pub fn is_openai_compatible(&self) -> bool {
         matches!(
@@ -71,208 +94,70 @@ impl Api {
     }
 }
 
-impl std::fmt::Display for Api {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl From<String> for Api {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "openai-completions" => Api::OpenAICompletions,
-            "mistral-conversations" => Api::MistralConversations,
-            "openai-responses" => Api::OpenAIResponses,
-            "azure-openai-responses" => Api::AzureOpenAIResponses,
-            "openai-codex-responses" => Api::OpenAICodexResponses,
-            "anthropic-messages" => Api::AnthropicMessages,
-            "bedrock-converse-stream" => Api::BedrockConverseStream,
-            "google-generative-ai" => Api::GoogleGenerativeAi,
-            "google-gemini-cli" => Api::GoogleGeminiCli,
-            "google-vertex" => Api::GoogleVertex,
-            "ollama" => Api::Ollama,
-            _ => Api::Custom(s),
-        }
-    }
-}
-
-/// Known provider types.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Provider {
-    /// Amazon Bedrock.
-    #[serde(rename = "amazon-bedrock")]
-    AmazonBedrock,
-    /// Anthropic.
-    #[serde(rename = "anthropic")]
-    Anthropic,
-    /// Google.
-    #[serde(rename = "google")]
-    Google,
-    /// Google Gemini CLI.
-    #[serde(rename = "google-gemini-cli")]
-    GoogleGeminiCli,
-    /// Google Antigravity.
-    #[serde(rename = "google-antigravity")]
-    GoogleAntigravity,
-    /// Google Vertex AI.
-    #[serde(rename = "google-vertex")]
-    GoogleVertex,
-    /// OpenAI.
-    #[serde(rename = "openai")]
-    OpenAI,
-    /// Generic OpenAI-compatible provider facade.
-    #[serde(rename = "openai-compatible")]
-    OpenAICompatible,
-    /// OpenAI Responses API.
-    #[serde(rename = "openai-responses")]
-    OpenAIResponses,
-    /// Azure OpenAI Responses.
-    #[serde(rename = "azure-openai-responses")]
-    AzureOpenAIResponses,
-    /// OpenAI Codex.
-    #[serde(rename = "openai-codex")]
-    OpenAICodex,
-    /// GitHub Copilot.
-    #[serde(rename = "github-copilot")]
-    GitHubCopilot,
-    /// xAI.
-    #[serde(rename = "xai")]
-    XAI,
-    /// Groq.
-    #[serde(rename = "groq")]
-    Groq,
-    /// Cerebras.
-    #[serde(rename = "cerebras")]
-    Cerebras,
-    /// OpenRouter.
-    #[serde(rename = "openrouter")]
-    OpenRouter,
-    /// Vercel AI Gateway.
-    #[serde(rename = "vercel-ai-gateway")]
-    VercelAiGateway,
-    /// ZAI.
-    #[serde(rename = "zai")]
-    ZAI,
-    /// Mistral.
-    #[serde(rename = "mistral")]
-    Mistral,
-    /// MiniMax.
-    #[serde(rename = "minimax")]
-    MiniMax,
-    /// MiniMax CN.
-    #[serde(rename = "minimax-cn")]
-    MiniMaxCN,
-    /// HuggingFace.
-    #[serde(rename = "huggingface")]
-    HuggingFace,
-    /// OpenCode.
-    #[serde(rename = "opencode")]
-    OpenCode,
-    /// OpenCode Go.
-    #[serde(rename = "opencode-go")]
-    OpenCodeGo,
-    /// Kimi Coding.
-    #[serde(rename = "kimi-coding")]
-    KimiCoding,
-    /// DeepSeek.
-    #[serde(rename = "deepseek")]
-    DeepSeek,
-    /// Xiaomi MiMo.
-    #[serde(rename = "xiaomi-mimo")]
-    XiaomiMIMO,
-    /// Zenmux.
-    #[serde(rename = "zenmux")]
-    Zenmux,
-    /// BAI.
-    #[serde(rename = "bai")]
-    Bai,
-    /// Ollama.
-    #[serde(rename = "ollama")]
-    Ollama,
-    /// Custom provider.
-    Custom(String),
-}
-
-impl Provider {
-    /// Get the string representation of this provider.
-    pub fn as_str(&self) -> &str {
-        match self {
-            Provider::AmazonBedrock => "amazon-bedrock",
-            Provider::Anthropic => "anthropic",
-            Provider::Google => "google",
-            Provider::GoogleGeminiCli => "google-gemini-cli",
-            Provider::GoogleAntigravity => "google-antigravity",
-            Provider::GoogleVertex => "google-vertex",
-            Provider::OpenAI => "openai",
-            Provider::OpenAICompatible => "openai-compatible",
-            Provider::OpenAIResponses => "openai-responses",
-            Provider::AzureOpenAIResponses => "azure-openai-responses",
-            Provider::OpenAICodex => "openai-codex",
-            Provider::GitHubCopilot => "github-copilot",
-            Provider::XAI => "xai",
-            Provider::Groq => "groq",
-            Provider::Cerebras => "cerebras",
-            Provider::OpenRouter => "openrouter",
-            Provider::VercelAiGateway => "vercel-ai-gateway",
-            Provider::ZAI => "zai",
-            Provider::Mistral => "mistral",
-            Provider::MiniMax => "minimax",
-            Provider::MiniMaxCN => "minimax-cn",
-            Provider::HuggingFace => "huggingface",
-            Provider::OpenCode => "opencode",
-            Provider::OpenCodeGo => "opencode-go",
-            Provider::KimiCoding => "kimi-coding",
-            Provider::DeepSeek => "deepseek",
-            Provider::XiaomiMIMO => "xiaomi-mimo",
-            Provider::Zenmux => "zenmux",
-            Provider::Bai => "bai",
-            Provider::Ollama => "ollama",
-            Provider::Custom(s) => s.as_str(),
-        }
-    }
-}
-
-impl std::fmt::Display for Provider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl From<String> for Provider {
-    fn from(s: String) -> Self {
-        match s.as_str() {
-            "amazon-bedrock" => Provider::AmazonBedrock,
-            "anthropic" => Provider::Anthropic,
-            "google" => Provider::Google,
-            "google-gemini-cli" => Provider::GoogleGeminiCli,
-            "google-antigravity" => Provider::GoogleAntigravity,
-            "google-vertex" => Provider::GoogleVertex,
-            "openai" => Provider::OpenAI,
-            "openai-compatible" => Provider::OpenAICompatible,
-            "openai-responses" => Provider::OpenAIResponses,
-            "azure-openai-responses" => Provider::AzureOpenAIResponses,
-            "openai-codex" => Provider::OpenAICodex,
-            "github-copilot" => Provider::GitHubCopilot,
-            "xai" => Provider::XAI,
-            "groq" => Provider::Groq,
-            "cerebras" => Provider::Cerebras,
-            "openrouter" => Provider::OpenRouter,
-            "vercel-ai-gateway" => Provider::VercelAiGateway,
-            "zai" => Provider::ZAI,
-            "mistral" => Provider::Mistral,
-            "minimax" => Provider::MiniMax,
-            "minimax-cn" => Provider::MiniMaxCN,
-            "huggingface" => Provider::HuggingFace,
-            "opencode" => Provider::OpenCode,
-            "opencode-go" => Provider::OpenCodeGo,
-            "kimi-coding" => Provider::KimiCoding,
-            "deepseek" => Provider::DeepSeek,
-            "xiaomi-mimo" => Provider::XiaomiMIMO,
-            "zenmux" => Provider::Zenmux,
-            "bai" => Provider::Bai,
-            "ollama" => Provider::Ollama,
-            _ => Provider::Custom(s),
-        }
+define_string_enum! {
+    /// Known provider types.
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    pub enum Provider {
+        /// Amazon Bedrock.
+        AmazonBedrock => "amazon-bedrock",
+        /// Anthropic.
+        Anthropic => "anthropic",
+        /// Google.
+        Google => "google",
+        /// Google Gemini CLI.
+        GoogleGeminiCli => "google-gemini-cli",
+        /// Google Antigravity.
+        GoogleAntigravity => "google-antigravity",
+        /// Google Vertex AI.
+        GoogleVertex => "google-vertex",
+        /// OpenAI.
+        OpenAI => "openai",
+        /// Generic OpenAI-compatible provider facade.
+        OpenAICompatible => "openai-compatible",
+        /// OpenAI Responses API.
+        OpenAIResponses => "openai-responses",
+        /// Azure OpenAI Responses.
+        AzureOpenAIResponses => "azure-openai-responses",
+        /// OpenAI Codex.
+        OpenAICodex => "openai-codex",
+        /// GitHub Copilot.
+        GitHubCopilot => "github-copilot",
+        /// xAI.
+        XAI => "xai",
+        /// Groq.
+        Groq => "groq",
+        /// Cerebras.
+        Cerebras => "cerebras",
+        /// OpenRouter.
+        OpenRouter => "openrouter",
+        /// Vercel AI Gateway.
+        VercelAiGateway => "vercel-ai-gateway",
+        /// ZAI.
+        ZAI => "zai",
+        /// Mistral.
+        Mistral => "mistral",
+        /// MiniMax.
+        MiniMax => "minimax",
+        /// MiniMax CN.
+        MiniMaxCN => "minimax-cn",
+        /// HuggingFace.
+        HuggingFace => "huggingface",
+        /// OpenCode.
+        OpenCode => "opencode",
+        /// OpenCode Go.
+        OpenCodeGo => "opencode-go",
+        /// Kimi Coding.
+        KimiCoding => "kimi-coding",
+        /// DeepSeek.
+        DeepSeek => "deepseek",
+        /// Xiaomi MiMo.
+        XiaomiMIMO => "xiaomi-mimo",
+        /// Zenmux.
+        Zenmux => "zenmux",
+        /// BAI.
+        Bai => "bai",
+        /// Ollama.
+        Ollama => "ollama",
     }
 }
 
@@ -327,9 +212,9 @@ impl Cost {
     }
 }
 
-/// OpenAI Completions compatibility settings.
+/// API capability flags — whether the provider supports certain protocol features.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct OpenAICompletionsCompat {
+pub struct CompatCapabilities {
     /// Supports the 'store' parameter.
     #[serde(default)]
     pub supports_store: bool,
@@ -339,12 +224,59 @@ pub struct OpenAICompletionsCompat {
     /// Supports 'reasoning_effort' parameter.
     #[serde(default)]
     pub supports_reasoning_effort: bool,
-    /// Mapping of thinking levels to reasoning effort values.
-    #[serde(default)]
-    pub reasoning_effort_map: HashMap<String, String>,
     /// Supports usage in streaming responses.
     #[serde(default = "default_true")]
     pub supports_usage_in_streaming: bool,
+    /// Supports strict mode for tool calls.
+    #[serde(default = "default_true")]
+    pub supports_strict_mode: bool,
+}
+
+impl Default for CompatCapabilities {
+    fn default() -> Self {
+        Self {
+            supports_store: true,
+            supports_developer_role: false,
+            supports_reasoning_effort: true,
+            supports_usage_in_streaming: true,
+            supports_strict_mode: true,
+        }
+    }
+}
+
+/// Thinking/reasoning format requirements.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompatThinking {
+    /// Thinking format ("openai", "zai", "qwen", "qwen-chat-template").
+    #[serde(default = "default_openai", rename = "thinking_format")]
+    pub format: String,
+    /// Requires thinking blocks to be sent as text.
+    #[serde(default, rename = "requires_thinking_as_text")]
+    pub as_text: bool,
+    /// When true, this provider requires every assistant message to carry
+    /// reasoning/thinking content when thinking is enabled, and content must
+    /// not be null.  Currently DeepSeek API enforces this constraint.
+    #[serde(default, rename = "reasoning_content_constrained")]
+    pub content_constrained: bool,
+    /// Mapping of thinking levels to reasoning effort values.
+    #[serde(default, rename = "reasoning_effort_map")]
+    pub effort_map: HashMap<String, String>,
+}
+
+impl Default for CompatThinking {
+    fn default() -> Self {
+        Self {
+            format: "openai".to_string(),
+            as_text: false,
+            content_constrained: false,
+            effort_map: HashMap::new(),
+        }
+    }
+}
+
+/// Wire-format constraints on messages and tool results.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct CompatMessageFormat {
     /// Which field to use for max tokens.
     #[serde(default)]
     pub max_tokens_field: Option<String>,
@@ -354,24 +286,28 @@ pub struct OpenAICompletionsCompat {
     /// Requires assistant message after tool results.
     #[serde(default)]
     pub requires_assistant_after_tool_result: bool,
-    /// Requires thinking blocks to be sent as text.
-    #[serde(default)]
-    pub requires_thinking_as_text: bool,
-    /// Thinking format ("openai", "zai", "qwen", "qwen-chat-template").
-    #[serde(default = "default_openai")]
-    pub thinking_format: String,
-    /// Supports strict mode for tool calls.
-    #[serde(default = "default_true")]
-    pub supports_strict_mode: bool,
+}
+
+/// OpenAI Completions compatibility settings.
+///
+/// Groups provider quirks into three semantic sub-structs:
+/// - `capabilities` — API feature probing flags
+/// - `thinking` — Reasoning/thinking format requirements
+/// - `message_format` — Wire-format constraints on messages
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct OpenAICompletionsCompat {
+    /// API capability flags.
+    #[serde(flatten)]
+    pub capabilities: CompatCapabilities,
+    /// Thinking/reasoning format requirements.
+    #[serde(flatten)]
+    pub thinking: CompatThinking,
+    /// Wire-format constraints on messages and tool results.
+    #[serde(flatten)]
+    pub message_format: CompatMessageFormat,
     /// OpenRouter routing preferences (e.g., `{"only": ["anthropic"]}`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub open_router_routing: Option<serde_json::Value>,
-
-    /// When true, this provider requires every assistant message to carry
-    /// reasoning/thinking content when thinking is enabled, and content must
-    /// not be null.  Currently DeepSeek API enforces this constraint.
-    #[serde(default)]
-    pub reasoning_content_constrained: bool,
 }
 
 fn default_true() -> bool {
@@ -380,26 +316,6 @@ fn default_true() -> bool {
 
 fn default_openai() -> String {
     "openai".to_string()
-}
-
-impl Default for OpenAICompletionsCompat {
-    fn default() -> Self {
-        Self {
-            supports_store: true,
-            supports_developer_role: false,
-            supports_reasoning_effort: true,
-            reasoning_effort_map: HashMap::new(),
-            supports_usage_in_streaming: true,
-            max_tokens_field: None,
-            requires_tool_result_name: false,
-            requires_assistant_after_tool_result: false,
-            requires_thinking_as_text: false,
-            thinking_format: "openai".to_string(),
-            supports_strict_mode: true,
-            open_router_routing: None,
-            reasoning_content_constrained: false,
-        }
-    }
 }
 
 /// Model configuration.

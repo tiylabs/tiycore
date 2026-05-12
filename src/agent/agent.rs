@@ -690,10 +690,7 @@ impl Agent {
     }
 
     fn current_abort_signal(&self) -> AbortSignal {
-        self.run_abort_signal
-            .read()
-            .clone()
-            .unwrap_or_default()
+        self.run_abort_signal.read().clone().unwrap_or_default()
     }
 
     fn dequeue_local_messages(
