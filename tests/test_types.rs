@@ -305,6 +305,99 @@ fn test_openai_completions_compat_default() {
     assert_eq!(compat.thinking.format, "openai");
 }
 
+#[test]
+fn test_openai_completions_compat_deserializes_legacy_flat_fields() {
+    let json = json!({
+        "supports_store": false,
+        "supports_developer_role": true,
+        "supports_reasoning_effort": false,
+        "supports_usage_in_streaming": false,
+        "supports_strict_mode": false,
+        "thinking_format": "qwen-chat-template",
+        "requires_thinking_as_text": true,
+        "reasoning_content_constrained": true,
+        "reasoning_effort_map": {
+            "minimal": "default",
+            "high": "max"
+        },
+        "max_tokens_field": "max_tokens",
+        "requires_tool_result_name": true,
+        "requires_assistant_after_tool_result": true,
+        "open_router_routing": {
+            "only": ["anthropic"]
+        }
+    });
+
+    let compat: OpenAICompletionsCompat = serde_json::from_value(json).unwrap();
+
+    assert!(!compat.capabilities.supports_store);
+    assert!(compat.capabilities.supports_developer_role);
+    assert!(!compat.capabilities.supports_reasoning_effort);
+    assert!(!compat.capabilities.supports_usage_in_streaming);
+    assert!(!compat.capabilities.supports_strict_mode);
+    assert_eq!(compat.thinking.format, "qwen-chat-template");
+    assert!(compat.thinking.as_text);
+    assert!(compat.thinking.content_constrained);
+    assert_eq!(compat.thinking.effort_map["minimal"], "default");
+    assert_eq!(compat.thinking.effort_map["high"], "max");
+    assert_eq!(
+        compat.message_format.max_tokens_field.as_deref(),
+        Some("max_tokens")
+    );
+    assert!(compat.message_format.requires_tool_result_name);
+    assert!(compat.message_format.requires_assistant_after_tool_result);
+    assert_eq!(
+        compat.open_router_routing.as_ref().unwrap()["only"][0],
+        "anthropic"
+    );
+}
+
+#[test]
+fn test_openai_completions_compat_serializes_legacy_flat_fields() {
+    let mut effort_map = std::collections::HashMap::new();
+    effort_map.insert("low".to_string(), "default".to_string());
+
+    let compat = OpenAICompletionsCompat {
+        capabilities: CompatCapabilities {
+            supports_store: false,
+            supports_developer_role: true,
+            supports_reasoning_effort: false,
+            supports_usage_in_streaming: false,
+            supports_strict_mode: false,
+        },
+        thinking: CompatThinking {
+            format: "zai".to_string(),
+            as_text: true,
+            content_constrained: true,
+            effort_map,
+        },
+        message_format: CompatMessageFormat {
+            max_tokens_field: Some("max_tokens".to_string()),
+            requires_tool_result_name: true,
+            requires_assistant_after_tool_result: true,
+        },
+        open_router_routing: None,
+    };
+
+    let value = serde_json::to_value(compat).unwrap();
+
+    assert_eq!(value["supports_store"], false);
+    assert_eq!(value["supports_developer_role"], true);
+    assert_eq!(value["supports_reasoning_effort"], false);
+    assert_eq!(value["supports_usage_in_streaming"], false);
+    assert_eq!(value["supports_strict_mode"], false);
+    assert_eq!(value["thinking_format"], "zai");
+    assert_eq!(value["requires_thinking_as_text"], true);
+    assert_eq!(value["reasoning_content_constrained"], true);
+    assert_eq!(value["reasoning_effort_map"]["low"], "default");
+    assert_eq!(value["max_tokens_field"], "max_tokens");
+    assert_eq!(value["requires_tool_result_name"], true);
+    assert_eq!(value["requires_assistant_after_tool_result"], true);
+    assert!(value.get("capabilities").is_none());
+    assert!(value.get("thinking").is_none());
+    assert!(value.get("message_format").is_none());
+}
+
 // ============================================================================
 // Content block tests
 // ============================================================================

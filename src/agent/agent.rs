@@ -2437,7 +2437,7 @@ impl crate::provider::LLMProtocol for DummyProvider {
 }
 
 /// Agent error type.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AgentError {
     #[error("Agent is already streaming")]
     AlreadyStreaming,

@@ -33,7 +33,7 @@ pub struct EventStream<T, R = T> {
 impl<T, R> EventStream<T, R>
 where
     T: Clone + Send + 'static,
-    R: Send + 'static,
+    R: Clone + Send + 'static,
 {
     /// Create a new event stream.
     pub fn new(is_complete: fn(&T) -> bool, extract_result: fn(T) -> R) -> Self {
@@ -98,13 +98,16 @@ where
     /// Get the final result (async, zero-cost wait via Notify).
     pub async fn result(&self) -> R {
         loop {
+            let notified = self.inner.notify.notified();
+
             {
-                let mut result = self.inner.result.lock();
-                if let Some(r) = result.take() {
+                let result = self.inner.result.lock();
+                if let Some(r) = result.clone() {
                     return r;
                 }
             }
-            self.inner.notify.notified().await;
+
+            notified.await;
         }
     }
 
