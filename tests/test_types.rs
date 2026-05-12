@@ -76,6 +76,16 @@ fn test_api_serde_roundtrip() {
 }
 
 #[test]
+fn test_api_custom_serde_roundtrip() {
+    let api = Api::Custom("custom-api".to_string());
+    let json = serde_json::to_string(&api).unwrap();
+    let back: Api = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(back, api);
+    assert_eq!(back.as_str(), "custom-api");
+}
+
+#[test]
 fn test_api_serde_all_known_variants() {
     let variants = vec![
         (Api::OpenAICompletions, "\"openai-completions\""),
@@ -131,6 +141,16 @@ fn test_provider_serde_roundtrip() {
     let json = serde_json::to_string(&provider).unwrap();
     let back: Provider = serde_json::from_str(&json).unwrap();
     assert_eq!(back, provider);
+}
+
+#[test]
+fn test_provider_custom_serde_roundtrip() {
+    let provider = Provider::Custom("custom-provider".to_string());
+    let json = serde_json::to_string(&provider).unwrap();
+    let back: Provider = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(back, provider);
+    assert_eq!(back.as_str(), "custom-provider");
 }
 
 // ============================================================================
