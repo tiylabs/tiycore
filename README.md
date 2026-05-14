@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
-[![Crate](https://img.shields.io/badge/crate-tiycore-green.svg?style=flat-square)](https://github.com/TiyAgents/tiycore)
+[![Crate](https://img.shields.io/badge/crate-tiycore-green.svg?style=flat-square)](https://github.com/tiylabs/tiycore)
 
 [English](./README.md) | [中文](./README-ZH.md)
 
