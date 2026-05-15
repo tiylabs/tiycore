@@ -1,0 +1,397 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                     TIYCORE CODEBASE COMPREHENSIVE MAP                         ║
+║                                                                                ║
+║  Unified LLM API & Stateful Agent Runtime in Rust | ~21,000 LOC | 51 files    ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📂 DIRECTORY TREE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+tiycore/
+├── Cargo.toml & Cargo.lock         ← Dependencies & lock file
+├── README.md & README-ZH.md        ← Documentation (bilingual)
+├── CODEBASE_MAP.md                 ← THIS FILE (comprehensive map)
+├── src/
+│   ├── lib.rs (82 lines)           ← Library root, re-exports core types
+│   ├── types/ (7 files, ~1,800 LOC)
+│   │   ├── context.rs              ← Context, Tool, StreamOptions
+│   │   ├── message.rs              ← UserMessage, AssistantMessage, Message
+│   │   ├── content.rs              ← ContentBlock, TextContent, ToolCall
+│   │   ├── model.rs                ← Model config, Provider/Api (define_string_enum! macro), OpenAICompletionsCompat (3 sub-structs)
+│   │   ├── usage.rs                ← Token usage tracking
+│   │   ├── events.rs               ← Event types
+│   │   ├── limits.rs               ← Resource limits
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── agent/ (4 files, ~2,500 LOC)
+│   │   ├── agent.rs                ← Agent main loop logic
+│   │   ├── state.rs                ← AgentState, AgentStateSnapshot
+│   │   ├── types.rs                ← Agent-specific types
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── protocol/ (7 files, ~2,000+ LOC)
+│   │   ├── traits.rs               ← LLMProtocol trait
+│   │   ├── common.rs               ← Shared protocol utilities
+│   │   ├── openai_completions.rs   ← /chat/completions API
+│   │   ├── openai_responses.rs     ← /responses API (reasoning)
+│   │   ├── anthropic.rs            ← Anthropic /messages API
+│   │   ├── google.rs               ← Google Generative AI
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── provider/ (18 files, ~3,000+ LOC)
+│   │   ├── openai.rs               ← OpenAI provider facade
+│   │   ├── anthropic.rs            ← Anthropic provider facade
+│   │   ├── google.rs               ← Google provider facade
+│   │   ├── ollama.rs               ← Local LLM support
+│   │   ├── openai_compatible.rs    ← Generic OpenAI-compatible
+│   │   ├── groq.rs, xai.rs, zai.rs ← Specialized providers
+│   │   ├── registry.rs             ← ProtocolRegistry
+│   │   ├── delegation.rs           ← Provider delegation macros
+│   │   └── mod.rs                  ← Aggregator + auto-registration
+│   │   (+ 9 additional specialized providers)
+│   │
+│   ├── stream/ (3 files, ~500+ LOC)
+│   │   ├── event_stream.rs         ← EventStream<T> generic type (Mutex<VecDeque> + Notify)
+│   │   ├── json_parser.rs          ← Incremental JSON parsing
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── transform/ (3 files, ~400+ LOC)
+│   │   ├── messages.rs             ← Message conversion utilities
+│   │   ├── tool_calls.rs           ← Tool call parsing & validation
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── catalog/ (1 file, ~1,000+ LOC)
+│   │   └── mod.rs                  ← Model catalog management
+│   │
+│   ├── models/ (2 files, ~500+ LOC)
+│   │   ├── predefined.rs           ← Pre-configured models
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── thinking/ (2 files, ~300+ LOC)
+│   │   ├── config.rs               ← ThinkingLevel, ThinkingDisplay
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   ├── validation/ (2 files, ~200+ LOC)
+│   │   ├── tool_validation.rs      ← JSON Schema validation
+│   │   └── mod.rs                  ← Aggregator
+│   │
+│   └── bin/
+│       └── tiy-catalog-sync.rs     ← CLI tool for catalog sync
+│
+├── tests/ (~20 test files)
+│   ├── test_agent*.rs              ← Agent tests
+│   ├── test_catalog*.rs            ← Catalog tests
+│   ├── test_provider_*.rs          ← Provider-specific tests
+│   ├── test_stream.rs              ← Streaming tests
+│   ├── test_transform.rs           ← Transform tests
+│   ├── test_types.rs               ← Type tests
+│   ├── test_thinking*.rs           ← Thinking tests
+│   └── test_validation.rs          ← Validation tests
+│
+├── examples/
+│   ├── basic_usage.rs              ← Basic API usage
+│   └── agent_example.rs            ← Agent loop example
+│
+└── catalog/                        ← Model catalog data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 ALL .RS FILES IN src/ (51 total)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TYPES LAYER (src/types/)
+  ✓ mod.rs              ← Aggregator
+  ✓ context.rs          ← Context, Tool, StreamOptions, CacheRetention
+  ✓ message.rs          ← Role, StopReason, UserMessage, AssistantMessage
+  ✓ content.rs          ← ContentBlock, TextContent, ThinkingContent, ToolCall
+  ✓ model.rs            ← Model definition, Provider/Api enums (macro-generated), OpenAICompletionsCompat
+  ✓ usage.rs            ← Token usage tracking
+  ✓ events.rs           ← Event type definitions
+  ✓ limits.rs           ← Resource & rate limits
+
+AGENT RUNTIME (src/agent/)
+  ✓ mod.rs              ← Aggregator
+  ✓ agent.rs            ← Agent, AgentLoop, AgentEventStream
+  ✓ state.rs            ← AgentState, AgentStateSnapshot
+  ✓ types.rs            ← Agent-specific types
+
+PROTOCOLS (src/protocol/)
+  ✓ mod.rs              ← Aggregator
+  ✓ traits.rs           ← LLMProtocol trait, BoxedProtocol, ArcProtocol
+  ✓ common.rs           ← Shared protocol utilities
+  ✓ openai_completions.rs    ← OpenAI Chat Completions implementation
+  ✓ openai_responses.rs      ← OpenAI Responses (reasoning) implementation
+  ✓ anthropic.rs        ← Anthropic API implementation
+  ✓ google.rs           ← Google Generative AI implementation
+
+PROVIDERS (src/provider/)
+  ✓ mod.rs              ← Aggregator + register_all_providers()
+  ✓ registry.rs         ← ProtocolRegistry, get_provider(), register_provider()
+  ✓ delegation.rs       ← Provider delegation macros
+  ✓ openai.rs           ← OpenAI provider facade
+  ✓ openai_compatible.rs     ← Generic OpenAI-compatible
+  ✓ openai_responses.rs      ← OpenAI Responses provider
+  ✓ anthropic.rs        ← Anthropic provider facade
+  ✓ google.rs           ← Google provider facade
+  ✓ ollama.rs           ← Ollama (local) provider
+  ✓ groq.rs             ← Groq provider
+  ✓ xai.rs              ← XAI (Grok) provider
+  ✓ openrouter.rs       ← OpenRouter provider
+  ✓ minimax.rs          ← MiniMax provider
+  ✓ kimi_coding.rs      ← Kimi Coding provider
+  ✓ zai.rs              ← ZAI provider
+  ✓ deepseek.rs         ← DeepSeek provider
+  ✓ xiaomi_mimo.rs      ← Xiaomi MIMO provider
+  ✓ zenmux.rs           ← Zenmux provider
+  ✓ bai.rs              ← BAI provider
+  ✓ opencode_go.rs      ← OpenCodeGo provider
+
+STREAMING (src/stream/)
+  ✓ mod.rs              ← Aggregator
+  ✓ event_stream.rs     ← EventStream<T>, Notify-based async result
+  ✓ json_parser.rs      ← Incremental JSON parsing for streams
+
+TRANSFORMATION (src/transform/)
+  ✓ mod.rs              ← Aggregator
+  ✓ messages.rs         ← Message format conversion
+  ✓ tool_calls.rs       ← Tool call parsing & validation
+
+CATALOG (src/catalog/)
+  ✓ mod.rs              ← Model catalog management, CatalogSnapshot
+
+MODELS (src/models/)
+  ✓ mod.rs              ← Aggregator
+  ✓ predefined.rs       ← Pre-configured model definitions
+
+THINKING (src/thinking/)
+  ✓ mod.rs              ← Aggregator
+  ✓ config.rs           ← ThinkingLevel, ThinkingDisplay
+
+VALIDATION (src/validation/)
+  ✓ mod.rs              ← Aggregator
+  ✓ tool_validation.rs  ← JSON Schema validation for tools
+
+BINARIES (src/bin/)
+  ✓ tiy-catalog-sync.rs ← CLI tool
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔑 KEY TYPES BY MODULE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+types/context.rs:
+  ┌─ Context
+  │  ├─ system_prompt: Option<String>
+  │  ├─ messages: Vec<Message>
+  │  └─ tools: Option<Vec<Tool>>
+  │
+  ├─ Tool
+  │  ├─ name: String
+  │  ├─ description: String
+  │  └─ parameters: serde_json::Value
+  │
+  ├─ StreamOptions
+  │  ├─ temperature, max_tokens, api_key, base_url
+  │  ├─ headers, session_id, cache_retention
+  │  ├─ security, transport, metadata
+  │  ├─ tool_choice, service_tier
+  │  ├─ max_retries, max_retry_delay_ms
+  │  ├─ on_payload (inspection hook)
+  │  └─ cancel_token
+  │
+  ├─ SimpleStreamOptions
+  │  ├─ base: StreamOptions
+  │  ├─ reasoning: Option<ThinkingLevel>
+  │  ├─ thinking_budget_tokens: Option<u32>
+  │  └─ thinking_display: Option<ThinkingDisplay>
+  │
+  └─ Enums:
+     ├─ Transport (Sse, WebSocket, Auto)
+     ├─ CacheRetention (None, Short, Long)
+     ├─ ToolChoice (Mode | Named)
+     ├─ ToolChoiceMode (Auto, Any, None, Required)
+     └─ OpenAIServiceTier (Auto, Default, Flex, Priority)
+
+types/message.rs:
+  ┌─ Role (enum: User, Assistant, ToolResult)
+  ├─ StopReason (enum: Stop, Length, ToolUse, Error, Aborted)
+  │
+  ├─ UserMessage
+  │  ├─ role: Role
+  │  ├─ content: UserContent
+  │  └─ timestamp: i64
+  │
+  ├─ AssistantMessage
+  │  ├─ role: Role
+  │  ├─ content: Vec<ContentBlock>
+  │  ├─ api, provider, model
+  │  ├─ usage, stop_reason
+  │  ├─ error_message, response_id
+  │  └─ timestamp: i64
+  │
+  ├─ ToolResultMessage<T>
+  │  ├─ tool_call_id, tool_name
+  │  ├─ content: Vec<ContentBlock>
+  │  ├─ details: Option<T>
+  │  ├─ is_error: bool
+  │  └─ timestamp: i64
+  │
+  └─ Message (enum: User | Assistant | ToolResult)
+
+types/content.rs:
+  ┌─ TextContent
+  │  ├─ text: String
+  │  └─ text_signature: Option<String>
+  │
+  ├─ ThinkingContent
+  │  ├─ thinking: String
+  │  ├─ thinking_signature: Option<String>
+  │  └─ redacted: bool
+  │
+  ├─ ImageContent
+  │  ├─ data: String (base64)
+  │  └─ mime_type: String
+  │
+  ├─ ToolCall
+  │  ├─ id: String
+  │  ├─ name: String
+  │  ├─ arguments: serde_json::Value
+  │  └─ thought_signature: Option<String>
+  │
+  └─ ContentBlock (enum)
+     ├─ Text(TextContent)
+     ├─ Thinking(ThinkingContent)
+     ├─ ToolCall(ToolCall)
+     └─ Image(ImageContent)
+
+agent/agent.rs:
+  ┌─ Agent (main runtime)
+  ├─ AgentError (error type)
+  ├─ AgentEventStream (event streaming)
+  ├─ SubscriberId (subscriber tracking)
+  │
+  └─ Functions:
+     ├─ agent_loop()
+     ├─ agent_loop_continue()
+     ├─ run_agent_loop()
+     └─ run_agent_loop_continue()
+
+protocol/traits.rs:
+  ├─ LLMProtocol (main trait)
+  ├─ BoxedProtocol (type alias)
+  └─ ArcProtocol (thread-safe wrapper)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏗️ ARCHITECTURE PATTERNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. PROTOCOL PATTERN
+   One LLMProtocol trait → Multiple implementations (OpenAI, Anthropic, Google, etc.)
+   
+2. PROVIDER FACADE PATTERN
+   OpenAIProvider → delegates to protocol::openai_completions
+   AnthropicProvider → delegates to protocol::anthropic
+   etc.
+
+3. REGISTRY PATTERN
+   ProtocolRegistry::global() → lazy provider lookup & auto-registration
+   
+4. TYPE-SAFE ENUMS
+   Message enum (User | Assistant | ToolResult)
+   ContentBlock enum (Text | Thinking | ToolCall | Image)
+   StopReason enum (Stop | Length | ToolUse | Error | Aborted)
+   
+5. BUILDER PATTERN
+   Tool::builder() → ToolBuilder
+   AssistantMessage::builder() → AssistantMessageBuilder
+   
+6. STREAMING PATTERN
+   EventStream<T> → handles SSE and WebSocket transport
+   
+7. ERROR HANDLING
+   thiserror for domain errors
+   anyhow for general error handling
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 DATA FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+User Code
+    ↓
+StreamOptions (config)
+    ↓
+Provider Facade (openai::OpenAIProvider, etc.)
+    ↓
+Protocol (protocol::openai_completions, etc.)
+    ↓
+HTTP Request (reqwest)
+    ↓
+EventStream (SSE or WebSocket)
+    ↓
+JSON Parser (stream::json_parser)
+    ↓
+Transform (transform::messages)
+    ↓
+Unified Types (Message, ContentBlock, ToolCall)
+    ↓
+Agent Loop (agent::agent)
+    ↓
+Tool Validation (validation::tool_validation)
+    ↓
+Tool Execution
+    ↓
+Response/Callback
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 STATISTICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Module              Files    Est. LOC    Purpose
+─────────────────────────────────────────────────────────────
+types/              7        ~1,800     Core type definitions
+agent/              4        ~2,500     Agent runtime
+protocol/           7        ~2,000+    Wire protocols
+provider/           18       ~3,000+    Provider facades
+stream/             3        ~500+      Streaming utilities
+transform/          3        ~400+      Message transformation
+catalog/            1        ~1,000+    Model catalog
+thinking/           2        ~300+      Extended thinking
+validation/         2        ~200+      Input validation
+models/             2        ~500+      Predefined models
+lib.rs              1        ~82        Library root
+──────────────────────────────────────────────────────────
+TOTAL               51       ~21,000    
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 QUICK NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Need                        Location
+─────────────────────────────────────────────────────────────
+Conversation state          src/types/context.rs
+Message types               src/types/message.rs
+Content blocks              src/types/content.rs
+Add provider                src/provider/{name}.rs + protocol/
+Build agents                src/agent/agent.rs
+Stream events               src/stream/event_stream.rs
+Transform messages          src/transform/messages.rs
+Validate tools              src/validation/tool_validation.rs
+Model catalog               src/catalog/mod.rs
+Extended thinking           src/thinking/config.rs
+Predefined models           src/models/predefined.rs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💎 KEY DESIGN INSIGHTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✓ Unified API        → Single interface for 17+ LLM providers
+✓ Streaming-First    → Built for real-time, event-based responses
+✓ Type-Safe          → Strong typing with comprehensive enums
+✓ Extensible         → Easy to add new providers via trait
+✓ Agent-Ready        → Built-in support for stateful loops
+✓ Tool-Aware         → First-class function calling support
+✓ Extended Thinking  → Support for reasoning/thinking models
+✓ Validation Built-In → JSON Schema validation for tools
+✓ Multi-Transport    → SSE and WebSocket support
+✓ Error-Rich         → Detailed error types with context
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -218,6 +218,45 @@ async fn test_assistant_stream_result() {
     assert_eq!(result.text_content(), "Hello");
 }
 
+#[tokio::test]
+async fn test_event_stream_result_available_after_completion() {
+    let stream: EventStream<String, String> = EventStream::new(|s| s == "done", |s| s.clone());
+
+    stream.push("done".to_string());
+
+    let result = tokio::time::timeout(std::time::Duration::from_millis(100), stream.result())
+        .await
+        .unwrap();
+    assert_eq!(result, "done");
+
+    let result = tokio::time::timeout(std::time::Duration::from_millis(100), stream.result())
+        .await
+        .unwrap();
+    assert_eq!(result, "done");
+}
+
+#[tokio::test]
+async fn test_event_stream_result_multiple_waiters_complete() {
+    let stream: EventStream<String, String> = EventStream::new(|s| s == "done", |s| s.clone());
+
+    let mut handles = Vec::new();
+    for _ in 0..16 {
+        let waiter = stream.clone();
+        handles.push(tokio::spawn(async move { waiter.result().await }));
+    }
+
+    tokio::task::yield_now().await;
+    stream.push("done".to_string());
+
+    for handle in handles {
+        let result = tokio::time::timeout(std::time::Duration::from_secs(1), handle)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(result, "done");
+    }
+}
+
 #[test]
 fn test_assistant_stream_events_not_yielded_after_done() {
     let stream = AssistantMessageEventStream::new_assistant_stream();

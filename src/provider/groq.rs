@@ -20,7 +20,7 @@ define_openai_delegation_provider! {
     provider_type: Provider::Groq,
     env_var: "GROQ_API_KEY",
     model_aware_compat: |model_id: &str| {
-        let reasoning_effort_map = if model_id == "qwen/qwen3-32b" {
+        let effort_map = if model_id == "qwen/qwen3-32b" {
             let mut map = HashMap::new();
             for level in &["minimal", "low", "medium", "high", "xhigh"] {
                 map.insert(level.to_string(), "default".to_string());
@@ -30,7 +30,10 @@ define_openai_delegation_provider! {
             HashMap::new()
         };
         OpenAICompletionsCompat {
-            reasoning_effort_map,
+            thinking: CompatThinking {
+                effort_map,
+                ..Default::default()
+            },
             ..Default::default()
         }
     },

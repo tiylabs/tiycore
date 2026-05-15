@@ -690,10 +690,7 @@ impl Agent {
     }
 
     fn current_abort_signal(&self) -> AbortSignal {
-        self.run_abort_signal
-            .read()
-            .clone()
-            .unwrap_or_default()
+        self.run_abort_signal.read().clone().unwrap_or_default()
     }
 
     fn dequeue_local_messages(
@@ -2440,7 +2437,7 @@ impl crate::provider::LLMProtocol for DummyProvider {
 }
 
 /// Agent error type.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum AgentError {
     #[error("Agent is already streaming")]
     AlreadyStreaming,

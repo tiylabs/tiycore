@@ -208,7 +208,7 @@ fn detect_compat(model: &Model) -> OpenAICompletionsCompat {
     // It is set by the provider's `default_compat()` (e.g. DeepSeekProvider) or
     // injected via catalog patches (patches.json).
 
-    let reasoning_effort_map = if is_groq && model.id.eq_ignore_ascii_case("qwen/qwen3-32b") {
+    let effort_map = if is_groq && model.id.eq_ignore_ascii_case("qwen/qwen3-32b") {
         HashMap::from([
             ("minimal".to_string(), "default".to_string()),
             ("low".to_string(), "default".to_string()),
@@ -220,27 +220,33 @@ fn detect_compat(model: &Model) -> OpenAICompletionsCompat {
     };
 
     OpenAICompletionsCompat {
-        supports_store: !is_non_standard,
-        supports_developer_role: !is_non_standard,
-        supports_reasoning_effort: !is_grok && !is_zai,
-        reasoning_effort_map,
-        supports_usage_in_streaming: true,
-        max_tokens_field: if use_max_tokens {
-            Some("max_tokens".to_string())
-        } else {
-            Some("max_completion_tokens".to_string())
+        capabilities: CompatCapabilities {
+            supports_store: !is_non_standard,
+            supports_developer_role: !is_non_standard,
+            supports_reasoning_effort: !is_grok && !is_zai,
+            supports_usage_in_streaming: true,
+            supports_strict_mode: true,
         },
-        requires_tool_result_name: false,
-        requires_assistant_after_tool_result: false,
-        requires_thinking_as_text: false,
-        thinking_format: if is_zai {
-            "zai".to_string()
-        } else {
-            "openai".to_string()
+        thinking: CompatThinking {
+            effort_map,
+            format: if is_zai {
+                "zai".to_string()
+            } else {
+                "openai".to_string()
+            },
+            as_text: false,
+            content_constrained: false,
         },
-        supports_strict_mode: true,
+        message_format: CompatMessageFormat {
+            max_tokens_field: if use_max_tokens {
+                Some("max_tokens".to_string())
+            } else {
+                Some("max_completion_tokens".to_string())
+            },
+            requires_tool_result_name: false,
+            requires_assistant_after_tool_result: false,
+        },
         open_router_routing: None,
-        reasoning_content_constrained: false,
     }
 }
 
@@ -502,14 +508,14 @@ fn convert_messages(
     let base_url = super::common::resolve_base_url(None, model.base_url.as_deref(), default_url);
     let transformed = super::common::normalize_reasoning_content(
         transformed,
-        compat.reasoning_content_constrained,
+        compat.thinking.content_constrained,
         thinking_enabled,
         base_url,
     );
 
     // Add system prompt
     if let Some(ref prompt) = context.system_prompt {
-        let use_developer = model.reasoning && compat.supports_developer_role;
+        let use_developer = model.reasoning && compat.capabilities.supports_developer_role;
         let role = if use_developer { "developer" } else { "system" };
 
         messages.push(OpenAIMessage {
@@ -530,7 +536,9 @@ fn convert_messages(
         match msg {
             Message::User(user_msg) => {
                 // P1-3: Insert synthetic assistant message between tool result and user
-                if last_was_tool_result && compat.requires_assistant_after_tool_result {
+                if last_was_tool_result
+                    && compat.message_format.requires_assistant_after_tool_result
+                {
                     messages.push(OpenAIMessage {
                         role: "assistant".to_string(),
                         content: Some(OpenAIContent::Text(
@@ -693,7 +701,7 @@ fn convert_assistant_message(
         .join("");
 
     // P0-2: If requires_thinking_as_text, prepend thinking to text content
-    if compat.requires_thinking_as_text {
+    if compat.thinking.as_text {
         if let Some(ref thinking) = thinking_text {
             let mut combined = thinking.clone();
             if !text_content.is_empty() {
@@ -750,7 +758,7 @@ fn convert_assistant_message(
     // Always use \"reasoning_content\" as the key — thinking_signature is
     // a cryptographic signature for Anthropic model verification; it must
     // never be used as a JSON field name in OpenAI-compatible requests.
-    if !compat.requires_thinking_as_text {
+    if !compat.thinking.as_text {
         if let Some(ref thinking) = thinking_text {
             extra_fields.insert(
                 "reasoning_content".to_string(),
@@ -801,7 +809,7 @@ fn convert_tool_result(tool_result: &ToolResultMessage, model: &Model) -> Vec<Op
     let requires_name = model
         .compat
         .as_ref()
-        .is_some_and(|c| c.requires_tool_result_name);
+        .is_some_and(|c| c.message_format.requires_tool_result_name);
 
     let mut messages = vec![OpenAIMessage {
         role: "tool".to_string(),
@@ -876,7 +884,7 @@ fn convert_tools(tools: &[Tool], compat: &OpenAICompletionsCompat) -> Vec<OpenAI
                 description: t.description.clone(),
                 parameters: t.parameters.clone(),
                 // P1-2: Only include strict if provider supports it
-                strict: if compat.supports_strict_mode {
+                strict: if compat.capabilities.supports_strict_mode {
                     Some(false)
                 } else {
                     None
@@ -949,7 +957,7 @@ fn sanitize_surrogates(text: &str) -> String {
 /// Resolve the reasoning_effort value, applying the compat reasoning_effort_map if present.
 fn resolve_reasoning_effort(effort: &str, compat: &OpenAICompletionsCompat) -> String {
     // Check if there's a mapped value for this effort level
-    if let Some(mapped) = compat.reasoning_effort_map.get(effort) {
+    if let Some(mapped) = compat.thinking.effort_map.get(effort) {
         return mapped.clone();
     }
     effort.to_string()
@@ -990,14 +998,14 @@ async fn run_stream(
     let clamped_max_tokens = super::common::clamp_openai_max_tokens(options.max_tokens);
 
     // Determine which max tokens field to use
-    let max_tokens_field = compat.max_tokens_field.as_deref();
+    let max_tokens_field = compat.message_format.max_tokens_field.as_deref();
     let (max_tokens, max_completion_tokens) = match max_tokens_field {
         Some("max_tokens") => (clamped_max_tokens, None),
         _ => (None, clamped_max_tokens),
     };
 
     // P1-4: Conditional stream_options based on compat
-    let stream_options = if compat.supports_usage_in_streaming {
+    let stream_options = if compat.capabilities.supports_usage_in_streaming {
         Some(StreamOptionsConfig {
             include_usage: true,
         })
@@ -1006,13 +1014,13 @@ async fn run_stream(
     };
 
     // P1-1: store = false when provider supports it (privacy)
-    let store = if compat.supports_store {
+    let store = if compat.capabilities.supports_store {
         Some(false)
     } else {
         None
     };
 
-    // P0-1: Resolve reasoning / thinking parameters based on compat.thinking_format
+    // P0-1: Resolve reasoning / thinking parameters based on compat.thinking.format
     let mut reasoning_effort = None;
     let mut enable_thinking = None;
     let mut chat_template_kwargs = None;
@@ -1023,7 +1031,7 @@ async fn run_stream(
             .and_then(|t| t.reasoning_effort.as_ref())
             .is_some();
 
-        match compat.thinking_format.as_str() {
+        match compat.thinking.format.as_str() {
             "zai" => {
                 // ZAI uses top-level enable_thinking: bool
                 enable_thinking = Some(has_thinking);
@@ -1040,7 +1048,7 @@ async fn run_stream(
             }
             _ => {
                 // Standard OpenAI format: use reasoning_effort
-                if compat.supports_reasoning_effort {
+                if compat.capabilities.supports_reasoning_effort {
                     if let Some(ref thinking_opts) = thinking_options {
                         if let Some(ref effort) = thinking_opts.reasoning_effort {
                             reasoning_effort = Some(resolve_reasoning_effort(effort, &compat));
@@ -1729,10 +1737,12 @@ mod tests {
     fn test_resolve_reasoning_effort_with_map() {
         let mut compat = OpenAICompletionsCompat::default();
         compat
-            .reasoning_effort_map
+            .thinking
+            .effort_map
             .insert("high".to_string(), "default".to_string());
         compat
-            .reasoning_effort_map
+            .thinking
+            .effort_map
             .insert("minimal".to_string(), "default".to_string());
 
         assert_eq!(resolve_reasoning_effort("high", &compat), "default");
@@ -1744,13 +1754,16 @@ mod tests {
     fn test_store_and_strict_mode() {
         // Provider that supports store and strict
         let compat = OpenAICompletionsCompat::default();
-        assert!(compat.supports_store);
-        assert!(compat.supports_strict_mode);
+        assert!(compat.capabilities.supports_store);
+        assert!(compat.capabilities.supports_strict_mode);
 
         // Provider that doesn't support store/strict
         let compat = OpenAICompletionsCompat {
-            supports_store: false,
-            supports_strict_mode: false,
+            capabilities: CompatCapabilities {
+                supports_store: false,
+                supports_strict_mode: false,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -1782,9 +1795,12 @@ mod tests {
             .unwrap();
 
         let compat = resolve_compat(&model);
-        assert!(!compat.supports_store);
-        assert!(!compat.supports_developer_role);
-        assert_eq!(compat.max_tokens_field.as_deref(), Some("max_tokens"));
+        assert!(!compat.capabilities.supports_store);
+        assert!(!compat.capabilities.supports_developer_role);
+        assert_eq!(
+            compat.message_format.max_tokens_field.as_deref(),
+            Some("max_tokens")
+        );
     }
 
     #[test]
@@ -1818,7 +1834,10 @@ mod tests {
     #[test]
     fn test_thinking_as_text_in_assistant_message() {
         let compat = OpenAICompletionsCompat {
-            requires_thinking_as_text: true,
+            thinking: CompatThinking {
+                as_text: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -1983,7 +2002,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages.clone(),
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "",
         );
@@ -1996,7 +2015,10 @@ mod tests {
     #[test]
     fn test_normalize_thinking_enabled_backfills_missing_reasoning() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2016,7 +2038,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "",
         );
@@ -2039,7 +2061,10 @@ mod tests {
     #[test]
     fn test_normalize_thinking_enabled_ensures_content_not_null() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2053,7 +2078,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "",
         );
@@ -2078,7 +2103,10 @@ mod tests {
     #[test]
     fn test_normalize_thinking_disabled_strips_all_thinking() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2092,7 +2120,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             false,
             "",
         );
@@ -2116,7 +2144,10 @@ mod tests {
     #[test]
     fn test_normalize_thinking_enabled_preserves_existing_reasoning() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2137,7 +2168,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "",
         );
@@ -2200,7 +2231,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "https://api.deepseek.com/v1",
         );
@@ -2220,7 +2251,10 @@ mod tests {
     #[test]
     fn test_normalize_non_assistant_messages_passthrough() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2239,7 +2273,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "",
         );
@@ -2266,7 +2300,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "https://openrouter.ai/api/v1",
         );
@@ -2288,7 +2322,10 @@ mod tests {
     #[test]
     fn test_normalize_explicit_constraint_triggers_for_third_party_provider() {
         let compat = OpenAICompletionsCompat {
-            reasoning_content_constrained: true,
+            thinking: CompatThinking {
+                content_constrained: true,
+                ..Default::default()
+            },
             ..Default::default()
         };
 
@@ -2303,7 +2340,7 @@ mod tests {
 
         let result = super::super::common::normalize_reasoning_content(
             messages,
-            compat.reasoning_content_constrained,
+            compat.thinking.content_constrained,
             true,
             "https://openrouter.ai/api/v1",
         );

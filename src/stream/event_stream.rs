@@ -7,6 +7,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
+use tokio::sync::Notify;
 
 /// Shared inner state for the event stream.
 struct EventStreamInner<T, R> {
@@ -18,6 +19,8 @@ struct EventStreamInner<T, R> {
     result: Mutex<Option<R>>,
     /// Waker to notify when new events are available.
     waker: Mutex<Option<Waker>>,
+    /// Async notification for `result()` waiters.
+    notify: Notify,
 }
 
 /// A generic event stream that supports async iteration and final result retrieval.
@@ -30,7 +33,7 @@ pub struct EventStream<T, R = T> {
 impl<T, R> EventStream<T, R>
 where
     T: Clone + Send + 'static,
-    R: Send + 'static,
+    R: Clone + Send + 'static,
 {
     /// Create a new event stream.
     pub fn new(is_complete: fn(&T) -> bool, extract_result: fn(T) -> R) -> Self {
@@ -40,6 +43,7 @@ where
                 done: AtomicBool::new(false),
                 result: Mutex::new(None),
                 waker: Mutex::new(None),
+                notify: Notify::new(),
             }),
             is_complete,
             extract_result,
@@ -69,6 +73,7 @@ where
             let result = (self.extract_result)(event);
             *self.inner.result.lock() = Some(result);
             self.inner.done.store(true, Ordering::SeqCst);
+            self.inner.notify.notify_waiters();
         } else {
             self.inner.events.lock().push_back(event);
         }
@@ -81,6 +86,7 @@ where
             *self.inner.result.lock() = result;
         }
         self.inner.done.store(true, Ordering::SeqCst);
+        self.inner.notify.notify_waiters();
         self.wake();
     }
 
@@ -89,16 +95,19 @@ where
         self.inner.done.load(Ordering::SeqCst)
     }
 
-    /// Get the final result (async, non-blocking wait).
+    /// Get the final result (async, zero-cost wait via Notify).
     pub async fn result(&self) -> R {
         loop {
+            let notified = self.inner.notify.notified();
+
             {
-                let mut result = self.inner.result.lock();
-                if let Some(r) = result.take() {
+                let result = self.inner.result.lock();
+                if let Some(r) = result.clone() {
                     return r;
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+
+            notified.await;
         }
     }
 

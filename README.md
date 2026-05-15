@@ -6,7 +6,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/Rust-2021_Edition-orange.svg?style=flat-square&logo=rust)](https://www.rust-lang.org/)
-[![Crate](https://img.shields.io/badge/crate-tiycore-green.svg?style=flat-square)](https://github.com/TiyAgents/tiycore)
+[![Crate](https://img.shields.io/badge/crate-tiycore-green.svg?style=flat-square)](https://github.com/tiylabs/tiycore)
 
 [English](./README.md) | [中文](./README-ZH.md)
 
@@ -19,7 +19,7 @@ tiycore is a Rust library that provides a single, provider-agnostic interface fo
 ## Highlights
 
 - **One interface, many providers** — 5 protocol-level implementations (OpenAI Completions, OpenAI Responses, Anthropic Messages, Google Generative AI / Vertex AI, Ollama) and 10 delegation providers (OpenAI-Compatible, xAI, Groq, OpenRouter, DeepSeek, MiniMax, Kimi Coding, ZAI, Zenmux, OpenCode Go) behind a single `LLMProtocol` trait.
-- **Streaming-first** — `EventStream<T, R>` backed by `parking_lot::Mutex<VecDeque>` implements `futures::Stream`. Every provider returns an `AssistantMessageEventStream` with fine-grained deltas: text, thinking, tool call arguments, and completion events.
+- **Streaming-first** — `EventStream<T, R>` backed by `parking_lot::Mutex<VecDeque>` + `tokio::sync::Notify` implements `futures::Stream`. Every provider returns an `AssistantMessageEventStream` with fine-grained deltas: text, thinking, tool call arguments, and completion events.
 - **Tool / Function calling** — Define tools via JSON Schema, validate arguments with the `jsonschema` crate, and execute tools in parallel or sequentially within the agent loop.
 - **Stateful Agent runtime** — `Agent` manages a full conversation loop: stream LLM → detect tool calls → execute tools → re-prompt → repeat. Supports steering (interrupt mid-turn), follow-up queues, event subscription (observer pattern), abort, configurable max turns (default 25), and standalone loop helpers when you want the same runtime without a long-lived `Agent` instance.
 - **Extended Thinking** — Provider-specific thinking/reasoning support with a unified `ThinkingLevel` enum (Off → XHigh, supporting OpenAI GPT-5 and Anthropic Opus 4.7+) and `ThinkingDisplay` enum (`Summarized` / `Omitted`) controlling whether thinking content is included in responses. Cross-provider thinking block conversion is handled automatically during message transformation.
@@ -442,7 +442,7 @@ cargo run --example agent_example
 src/
 ├── lib.rs              # Crate root, public re-exports
 ├── types/              # Provider-agnostic data model
-│   ├── model.rs        # Model, Provider, Api, Cost, OpenAICompletionsCompat
+│   ├── model.rs        # Model, Provider, Api (via define_string_enum! macro), Cost, OpenAICompletionsCompat (CompatCapabilities, CompatThinking, CompatMessageFormat)
 │   ├── message.rs      # Message (User/Assistant/ToolResult), StopReason
 │   ├── content.rs      # ContentBlock (Text/Thinking/ToolCall/Image)
 │   ├── context.rs      # Context, Tool, StreamOptions
